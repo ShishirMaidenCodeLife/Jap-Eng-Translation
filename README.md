@@ -1,0 +1,1 @@
+This is just an experimental project to build a translator for Google Meet—either as an extension or standalone app—using tools like Selenium, Google Translate, and LLMs for real-time conversation translation. 
