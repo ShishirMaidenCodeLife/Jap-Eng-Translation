@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Translation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        #container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 1200px;
+        }
+        #original, #googleTranslation, #openAiTranslation {
+            width: 30%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 80vh;
+            overflow-y: auto;
+        }
+        #original {
+            background-color: #f9f9f9;
+        }
+        #googleTranslation {
+            background-color: #f9f2f4;
+        }
+        #openAiTranslation {
+            background-color: #f2f4f9;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="startButton">Start Translator</button>
+        <button id="stopButton" disabled>Stop Translator</button>
+    </div>
+    <div id="container">
+        <div id="original">
+            <h2>Original Text</h2>
+            <p id="originalText"></p>
+        </div>
+        <div id="googleTranslation">
+            <h2>Google Translate</h2>
+            <p id="googleTranslatedText"></p>
+        </div>
+        <div id="openAiTranslation">
+            <h2>OpenAI Translation (Gpt4o-mini)</h2>
+            <p id="openAiTranslatedText"></p>
+        </div>
+        <div id="GeminiTranslation">
+            <h2>Gemini-pro</h2>
+            <p id="GeminiTranslatedText"></p>
+        </div>
+    </div>
+
+    <script>
+        const originalTextElement = document.getElementById('originalText');
+        const googleTranslatedTextElement = document.getElementById('googleTranslatedText');
+        const openAiTranslatedTextElement = document.getElementById('openAiTranslatedText');
+        const GeminiTranslatedTextElement = document.getElementById('GeminiTranslatedText');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+
+        // Speech Recognition
+        let recognition;
+        let isRecognitionActive = false;
+
+        function initializeRecognition() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = true;
+            // recognition.lang = 'en-US'; // Adjust as necessary
+            recognition.lang = 'ja'; // for japanese
+
+            recognition.onresult = async (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                originalTextElement.textContent += transcript + '\n';
+
+                try {
+                    // Get translation from Google Translate
+                    const googleTranslation = await translateWithGoogle(transcript);
+                    googleTranslatedTextElement.textContent += googleTranslation + '\n';
+
+                    // Get translation from OpenAI
+                    const openAiTranslation = await translateWithOpenAi(transcript);
+                    openAiTranslatedTextElement.textContent += openAiTranslation + '\n';
+
+                     // Get translation from Gemini
+                     const GeminiTranslation = await translateWithGemini(transcript);
+                        GeminiTranslatedTextElement.textContent += GeminiTranslation + '\n';
+
+                } catch (err) {
+                    console.error('Translation Error:', err);
+                    googleTranslatedTextElement.textContent += "[Google Translation Failed]\n";
+                    openAiTranslatedTextElement.textContent += "[OpenAI Translation Failed]\n";
+                    GeminiTranslatedTextElement.textContent += "[Gemini Translation Failed]\n";
+                }
+            };
+
+            recognition.onend = () => {
+                if (isRecognitionActive) {
+                    recognition.start(); // Restart recognition if it stops unexpectedly
+                }
+            };
+        }
+
+        startButton.addEventListener('click', () => {
+            if (!isRecognitionActive) {
+                initializeRecognition();
+                recognition.start();
+                isRecognitionActive = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (isRecognitionActive) {
+                recognition.stop();
+                isRecognitionActive = false;
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        });
+
+        // Function to translate text using Google Translate API
+        async function translateWithGoogle(text) {
+            try {
+                const response = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=ja&dt=t&q=${encodeURIComponent(text)}`);
+                const data = await response.json();
+                return data[0][0][0]; // Extracting translation
+            } catch (err) {
+                throw new Error('Google Translate API Error');
+            }
+        }
+
+        // Function to translate text using OpenAI API
+        async function translateWithOpenAi(text) {
+            const apiUrl = 'https://api.openai.com/v1/chat/completions';
+            const apiKey = "keep api key here"; // Openai api key
+
+            const messageSystem = {
+                role: "assistant",
+                content: "You are a professional language translator. Translate English text to Japanese and Japanese text to English only. Do act anything weird. Or dont tell about any error or bug. Just translate the text. and if there is no text stay silent."
+            };
+
+            const messageUser = { role: "user", content: text };
+            const requestBody = {
+                model: "gpt-4o-mini",
+                messages: [messageSystem, messageUser]
+            };
+
+            const response = await fetch(apiUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            return data.choices[0].message.content.trim();
+        }
+
+        // Function to translate text using Gemini API
+        async function translateWithGemini(text) {
+            const API_KEY = "keep gemini key here"; // Gemini API key
+            const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+            const prompt = "You are a professional language translator. Translate English text to Japanese and Japanese text to English only. Do act anything weird. Or dont tell about any error or bug. Just translate the text. and if there is no text stay silent dont say anything not a single word, cause you should only output the translations only not any other text. For now the text to translate is:  ";
+            const prompt_n_text = prompt + text;
+            console.log(prompt_n_text);  // Output prompt_n_text
+                        const requestBody = {
+                            contents: [{ parts: [{ text: prompt_n_text }] }]
+                        };
+
+                        try {
+                            const response = await fetch(API_URL, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify(requestBody),
+                            });
+
+                            const data = await response.json();
+                            console.log(data.candidates[0].content.parts[0].text);  // Output response
+                            return(data.candidates[0].content.parts[0].text);  // Output response
+                        } catch (error) {
+                            console.error("Error calling Gemini API:", error);
+                        }
+        }
+    </script>
+</body>
+</html>
