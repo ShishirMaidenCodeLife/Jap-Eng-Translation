@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Translation (WebSocket)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 0 10px;
+        }
+        #container {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+        }
+        #original, #translated {
+            width: 45%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 80vh;
+            overflow-y: auto;
+        }
+        #original {
+            background-color: #f9f9f9;
+        }
+        #translated {
+            background-color: #eef9f9;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <button id="startButton">Start Translator</button>
+        <button id="stopButton" disabled>Stop Translator</button>
+    </div>
+    <div id="container">
+        <div id="original">
+            <h2>Original Text</h2>
+            <p id="originalText"></p>
+        </div>
+        <div id="translated">
+            <h2>Translated Text</h2>
+            <p id="translatedText"></p>
+        </div>
+    </div>
+
+    <script>
+        const originalTextElement = document.getElementById('originalText');
+        const translatedTextElement = document.getElementById('translatedText');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+
+        let recognition;
+        let isRecognitionActive = false;
+        let socket;
+
+        function initializeRecognition() {
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.continuous = true;
+            recognition.lang = 'en-US'; // Set the desired recognition language
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                originalTextElement.textContent += transcript + '\n';
+
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ text: transcript }));
+                }
+            };
+
+            recognition.onend = () => {
+                if (isRecognitionActive) recognition.start();
+            };
+        }
+
+        function initializeWebSocket() {
+            socket = new WebSocket('ws://localhost:8001/ws/translate');
+
+            socket.onmessage = (event) => {
+                const { openai, googletrans } = JSON.parse(event.data);
+                translatedTextElement.textContent += `OpenAI: ${openai}\nGoogle: ${googletrans}\n`;
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+                translatedTextElement.textContent += "[WebSocket Error]\n";
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket closed');
+            };
+        }
+
+        startButton.addEventListener('click', () => {
+            if (!isRecognitionActive) {
+                initializeRecognition();
+                initializeWebSocket();
+                recognition.start();
+                isRecognitionActive = true;
+                startButton.disabled = true;
+                stopButton.disabled = false;
+            }
+        });
+
+        stopButton.addEventListener('click', () => {
+            if (isRecognitionActive) {
+                recognition.stop();
+                isRecognitionActive = false;
+                if (socket) socket.close();
+                startButton.disabled = false;
+                stopButton.disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
