@@ -1,0 +1,35 @@
+SpeechRecognition
+gtts
+googletrans==4.0.0-rc1
+pyaudio==0.2.14
+
+
+# SpeechRecognition==3.10.3 
+# pygame==2.5.2
+# pyaudio==0.2.14
+# pyttsx3==2.90
+
+# Error: 1 : ModuleNotFoundError: No module named 'distutils'
+# soln 1: pip install setuptools
+
+setuptools
+
+## For opensource models
+transformers
+
+torch
+torchvision
+torchaudio
+
+sentencepiece
+
+##Selenium
+selenium
+webdriver-manager
+
+
+#playwrite used instead of selenium
+playwright
+
+pyppeteer
+
